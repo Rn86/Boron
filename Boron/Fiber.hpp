@@ -1,41 +1,31 @@
 #ifndef BORON_FIBER_HPP_INCLDUED
 #define BORON_FIBER_HPP_INCLDUED
 
-#include <memory>
-#include <functional>
+#include <Boron/Manager.hpp>
 
 namespace Boron
 {
-	typedef size_t FiberDescriptor;
-	typedef std::function<void(void)> FiberCallback;
-
 	class Fiber
 	{
-	public:
-		enum Flags
-		{
-			FloatSwitch
-		};
-
 	private:
-		Fiber();
-		Fiber(Flags flags);
+		Fiber(FiberUID uid);
+		Fiber(FiberUID uid, FiberFlags flags);
+		Fiber(FiberUID uid, const FiberCallback & callback, size_t szStack);
+		Fiber(FiberUID uid, FiberFlags flags, const FiberCallback & callback, size_t szStackCommit, size_t szStackReserve);
 
 	public:
-		Fiber(size_t szStack, const FiberCallback & callback, const Fiber & prime);
-		Fiber(size_t szStackCommit, size_t szStackReserve, Flags flags, const FiberCallback & callback, const Fiber & prime);
 		Fiber(const Fiber & fiber);
 		Fiber(const Fiber && fiber) noexcept;
 
 		Fiber & operator=(const Fiber & fiber);
 		Fiber & operator=(const Fiber && fiber) noexcept;
 
-		FiberDescriptor GetDescriptor() const;
-
+	public:
 		void Switch() const;
+		FiberUID GetUID() const;
 
 	private:
-		friend class Engine;
+		friend Manager;
 
 	private:
 		struct Impl;

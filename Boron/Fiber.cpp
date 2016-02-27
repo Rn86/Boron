@@ -1,4 +1,5 @@
 #include <Boron/Fiber.hpp>
+#include <Boron/LocalManager.hpp>
 
 #include <exception>
 
@@ -6,57 +7,64 @@
 
 namespace Boron
 {
-	static FiberDescriptor MakeDescriptor(LPVOID handle)
+	static DWORD MakeFlags(FiberFlags flags)
 	{
-		return (FiberDescriptor)handle;
+		return (flags & FiberFlags::FloatSwitch) ? FIBER_FLAG_FLOAT_SWITCH : 0;
 	}
 
-	static DWORD MakeFlags(Fiber::Flags flags)
-	{
-		return (flags & Fiber::Flags::FloatSwitch) ? FIBER_FLAG_FLOAT_SWITCH : 0;
-	}
-
+	/*
+	 * Fiber::Impl
+	 */
 	struct Fiber::Impl
 	{
 	private:
 		struct FiberDispatcher;
 
 	public:
-		Impl(LPVOID handle)
-			: m_handle(handle),
-			m_descriptor(MakeDescriptor(handle))
+		Impl(FiberUID uid, LPVOID handle)
+			: m_uid(uid),
+			m_handle(handle)
 		{
 			if (!m_handle)
 				throw std::exception("Fiber handle is nullptr");
 		}
 
-		Impl()
-			: Impl(ConvertThreadToFiber(this))
+		Impl(FiberUID uid)
+			: Impl(uid, ConvertThreadToFiber(this))
 		{
 		}
 
-		Impl(Flags flags)
-			: Impl(ConvertThreadToFiberEx(this, MakeFlags(flags)))
+		Impl(FiberUID uid, FiberFlags flags)
+			: Impl(uid, ConvertThreadToFiberEx(this, MakeFlags(flags)))
 		{
 		}
 
-		Impl(size_t szStack, const FiberCallback & callback, const Fiber & prime)
-			: Impl(CreateFiber(szStack, (LPFIBER_START_ROUTINE)FiberDispatcher::Dispatch, new FiberDispatcher(callback, prime)))
+		Impl(FiberUID uid, const FiberCallback & callback, size_t szStack)
+			: Impl(uid, CreateFiber(szStack, (LPFIBER_START_ROUTINE)FiberDispatcher::Dispatch, new FiberDispatcher(callback)))
 		{
 		}
 
-		Impl(size_t szStackCommit, size_t szStackReserve, Flags flags, const FiberCallback & callback, const Fiber & prime)
-			: Impl(CreateFiberEx(szStackCommit, szStackReserve, MakeFlags(flags), (LPFIBER_START_ROUTINE)FiberDispatcher::Dispatch, new FiberDispatcher(callback, prime)))
+		Impl(FiberUID uid, FiberFlags flags, const FiberCallback & callback, size_t szStackCommit, size_t szStackReserve)
+			: Impl(uid, CreateFiberEx(szStackCommit, szStackReserve, MakeFlags(flags), (LPFIBER_START_ROUTINE)FiberDispatcher::Dispatch, new FiberDispatcher(callback)))
 		{
+		}
+
+		void Switch() const
+		{
+			SwitchToFiber(m_handle);
+		}
+
+		FiberUID GetUID() const
+		{
+			return m_uid;
 		}
 
 	private:
 		struct FiberDispatcher
 		{
 		public:
-			FiberDispatcher(const FiberCallback & callback, const Fiber & prime)
-				: m_callback(callback),
-				m_prime(prime)
+			FiberDispatcher(const FiberCallback & callback)
+				: m_callback(callback)
 			{
 			}
 
@@ -64,40 +72,42 @@ namespace Boron
 			{
 				if (pDispatcher)
 				{
-					pDispatcher->m_callback();
-					Fiber prime = pDispatcher->m_prime;
+					Manager manager = ManagerInstance::GetInstance();
+					pDispatcher->m_callback(manager);
 					delete pDispatcher;
-					prime.Switch();
+					manager.SwitchToPrime();
 				}
 			}
 
 		private:
 			FiberCallback m_callback;
-			Fiber m_prime;
 		};
 
-	public:
+	private:
+		FiberUID m_uid;
 		LPVOID m_handle;
-		FiberDescriptor m_descriptor;
 	};
 
-	Fiber::Fiber()
-		: m_pImpl(new Impl())
+	/*
+	 * Fiber
+	 */
+	Fiber::Fiber(FiberUID uid)
+		: m_pImpl(new Impl(uid))
 	{
 	}
 
-	Fiber::Fiber(Flags flags)
-		: m_pImpl(new Impl(flags))
+	Fiber::Fiber(FiberUID uid, FiberFlags flags)
+		: m_pImpl(new Impl(uid, flags))
 	{
 	}
 
-	Fiber::Fiber(size_t szStack, const FiberCallback & callback, const Fiber & prime)
-		: m_pImpl(new Impl(szStack, callback, prime))
+	Fiber::Fiber(FiberUID uid, const FiberCallback & callback, size_t szStack)
+		: m_pImpl(new Impl(uid, callback, szStack))
 	{
 	}
 
-	Fiber::Fiber(size_t szStackCommit, size_t szStackReserve, Flags flags, const FiberCallback & callback, const Fiber & prime)
-		: m_pImpl(new Impl(szStackCommit, szStackReserve, flags, callback, prime))
+	Fiber::Fiber(FiberUID uid, FiberFlags flags, const FiberCallback & callback, size_t szStackCommit, size_t szStackReserve)
+		: m_pImpl(new Impl(uid, flags, callback, szStackCommit, szStackReserve))
 	{
 	}
 
@@ -123,13 +133,13 @@ namespace Boron
 		return *this;
 	}
 
-	FiberDescriptor Fiber::GetDescriptor() const
-	{
-		return m_pImpl->m_descriptor;
-	}
-
 	void Fiber::Switch() const
 	{
-		SwitchToFiber(m_pImpl->m_handle);
+		m_pImpl->Switch();
+	}
+
+	FiberUID Fiber::GetUID() const
+	{
+		return m_pImpl->GetUID();
 	}
 }

@@ -111,11 +111,12 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="Engine.hpp" />
+    <ClInclude Include="Manager.hpp" />
     <ClInclude Include="Fiber.hpp" />
+    <ClInclude Include="LocalManager.hpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Engine.cpp" />
+    <ClCompile Include="Manager.cpp" />
     <ClCompile Include="Fiber.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

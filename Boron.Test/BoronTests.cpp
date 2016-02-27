@@ -1,42 +1,55 @@
 #include "stdafx.h"
 #include "CppUnitTest.h"
 
-#include <Boron/Engine.hpp>
+#include <Boron/Fiber.hpp>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+using namespace Boron;
 
 namespace BoronTest
 {		
+	enum FiberUIDs
+	{
+		fiber_A,
+		fiber_B,
+		fiber_C,
+	};
+
 	TEST_CLASS(BoronTests)
 	{
 	public:
 		
 		TEST_METHOD(TestMethod1)
 		{
-			Boron::Engine engine;
+			Manager manager = Manager::Create();
 
-			std::function<void(void)> func_A([]()
+			manager.AddFiber(fiber_A, [](Manager & manager)
 			{
 				// fiber_A
+
+				// Switch to fiber_B
+				manager.SwitchTo(fiber_B);
+			});
+
+			manager.AddFiber(fiber_B, [](Manager & manager)
+			{
+				// fiber_B
+
+				// Switch to prime fiber
+				manager.SwitchToPrime();
+			});
+
+			manager.AddFiber(fiber_C, [](Manager &)
+			{
+				// fiber_C
 
 				// Unnecessary to switch to prime fiber,
 				// it is done internaly.
 			});
 
-			Boron::Fiber fiber_A = engine.AddFiber(0, func_A);
-
-			std::function<void(void)> func_B([&fiber_A]()
-			{
-				// fiber_B
-
-				// Switch to fiber_A
-				fiber_A.Switch();
-			});
-
-			Boron::Fiber fiber_B = engine.AddFiber(0, func_B);
-
-			// Switch to fiber_B
-			fiber_B.Switch();
+			// Switch to fiber_BB
+			manager.SwitchTo(fiber_B);
+			manager.SwitchTo(fiber_C);
 		}
 
 	};
